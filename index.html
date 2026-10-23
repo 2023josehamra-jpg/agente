@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Consultor Médico - Agente IA</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div class="app-container">
+    <!-- Encabezado -->
+    <header class="chat-header">
+      <div class="agent-profile">
+        <div class="avatar-container">
+          <div class="avatar">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+            </svg>
+          </div>
+          <span class="status-indicator"></span>
+        </div>
+        <div class="agent-info">
+          <h1>Consultor Médico</h1>
+          <p>Asistente virtual de trámites y consultas médicas</p>
+        </div>
+      </div>
+    </header>
+
+    <!-- ZONA DE CHAT -->
+    <main id="zona-de-chat" aria-live="polite">
+      <div class="message agent">
+        <div class="message-content">
+          Hola, soy tu Consultor Médico. ¿En qué trámite o consulta específica te puedo ayudar hoy?
+        </div>
+        <span class="message-time">10:00 AM</span>
+      </div>
+    </main>
+
+    <!-- ZONA DE ESCRITURA -->
+    <footer id="zona-de-escritura">
+      <div class="quick-prompts">
+        <button class="chip-btn" onclick="usarSugerencia('¿Cómo saco un turno médico?')">¿Cómo saco un turno?</button>
+        <button class="chip-btn" onclick="usarSugerencia('¿Qué documentos necesito para autorizar un estudio?')">Autorización de estudios</button>
+        <button class="chip-btn" onclick="usarSugerencia('¿Cómo solicito una receta digital?')">Receta digital</button>
+      </div>
+      
+      <form id="chat-form" class="input-container" onsubmit="enviarMensaje(event)">
+        <textarea 
+          id="user-input" 
+          placeholder="Escribe tu consulta sobre trámites o temas médicos..." 
+          rows="1"
+          required
+        ></textarea>
+        <button type="submit" id="send-btn" class="send-btn" aria-label="Enviar mensaje">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13"></line>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+          </svg>
+        </button>
+      </form>
+    </footer>
+  </div>
+
+  <!-- Archivos JS -->
+  <script src="config.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
