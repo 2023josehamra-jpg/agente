@@ -4,10 +4,35 @@ const userInput = document.getElementById('user-input');
 const sendBtn = document.getElementById('send-btn');
 const chatForm = document.getElementById('chat-form');
 
-// Variables de estado
+// Variables de estado y sesión
+let sessionIdMemoria = null;
 let isWaitingResponse = false;
-const TIMEOUT_MS = 10000; // Tiempo límite de solicitud: 10 segundos
-const COOLDOWN_MS = 2000;  // Tiempo de espera obligatorio entre envíos
+const TIMEOUT_MS = 30000; // 30 segundos para que Make y la IA respondan
+const COOLDOWN_MS = 1500; // Pausa mínima entre envíos
+
+// Inicializar sessionId único para mantener el historial en Data Store
+const sessionId = obtenerOCrearSessionId();
+
+// Genera o recupera un sessionId único
+function obtenerOCrearSessionId() {
+  const claveStorage = 'consultor_medico_session_id';
+  try {
+    const guardado = localStorage.getItem(claveStorage);
+    if (guardado) return guardado;
+  } catch (e) {}
+
+  const nuevoId = (typeof crypto !== 'undefined' && crypto.randomUUID)
+    ? crypto.randomUUID()
+    : `ses-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
+
+  try {
+    localStorage.setItem(claveStorage, nuevoId);
+  } catch (e) {
+    sessionIdMemoria = nuevoId;
+  }
+
+  return nuevoId;
+}
 
 // Auto-ajuste de altura para el campo de texto
 userInput.addEventListener('input', () => {
@@ -81,12 +106,41 @@ function removerCargando() {
   }
 }
 
+// Procesa la respuesta de Make de forma segura (JSON o texto plano)
+function procesarRespuestaMake(textoCrudo) {
+  let texto = textoCrudo.trim();
+  if (!texto) return 'Solicitud procesada con éxito.';
+
+  texto = texto.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+
+  try {
+    const data = JSON.parse(texto);
+    if (data && typeof data === 'object') {
+      return data.respuesta || data.response || data.reply || data.message || data.mensaje || texto;
+    }
+  } catch (e) {
+    if (texto.startsWith('{') && texto.endsWith('}')) {
+      try {
+        const dataReparada = JSON.parse(texto.replace(/\r?\n/g, '\\n'));
+        return dataReparada.respuesta || dataReparada.response || dataReparada.reply || dataReparada.message || dataReparada.mensaje || texto;
+      } catch (e2) {}
+    }
+  }
+
+  return texto;
+}
+
 // Enviar el mensaje e interactuar con el Webhook
 async function enviarMensaje(event) {
   event.preventDefault();
 
   const mensajeTexto = userInput.value.trim();
   if (!mensajeTexto || isWaitingResponse) return;
+
+  if (typeof WEBHOOK_URL === 'undefined' || !WEBHOOK_URL.trim()) {
+    agregarMensaje('Falta configurar la URL del webhook en config.js.', 'error');
+    return;
+  }
 
   // Bloqueo de UI
   isWaitingResponse = true;
@@ -100,7 +154,6 @@ async function enviarMensaje(event) {
 
   mostrarCargando();
 
-  // Control de tiempo límite con AbortController
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
@@ -110,21 +163,23 @@ async function enviarMensaje(event) {
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ message: mensajeTexto }),
+      body: JSON.stringify({
+        sessionId: sessionId,
+        mensaje: mensajeTexto,
+        fecha: new Date().toISOString()
+      }),
       signal: controller.signal
     });
 
+    const textoCrudo = await response.text();
     clearTimeout(timeoutId);
 
     if (!response.ok) {
-      throw new Error(`Error en el servidor: ${response.status}`);
+      throw new Error(`HTTP_${response.status}`);
     }
 
-    const data = await response.json();
     removerCargando();
-
-    // Obtener y mostrar la respuesta del agente
-    const respuestaAgente = data.reply || data.message || "Solicitud procesada con éxito.";
+    const respuestaAgente = procesarRespuestaMake(textoCrudo);
     agregarMensaje(respuestaAgente, 'agent');
 
   } catch (error) {
@@ -132,13 +187,11 @@ async function enviarMensaje(event) {
     removerCargando();
 
     if (error.name === 'AbortError') {
-      agregarMensaje("La consulta superó el tiempo límite de espera. Por favor, reintenta.", 'error');
+      agregarMensaje('La consulta superó el tiempo límite de espera. Por favor, reintentá.', 'error');
     } else {
-      // Respuesta de contingencia si el webhook de prueba no está activo
-      agregarMensaje("Simulación de respuesta: Para realizar este trámite, diríjase a la sección de trámites en línea o presente su DNI y credencial en la sede más cercana.", 'agent');
+      agregarMensaje('No se pudo conectar con el servidor. Revisá que el escenario en Make esté en Active.', 'error');
     }
   } finally {
-    // Temporizador de espera (cooldown)
     setTimeout(() => {
       isWaitingResponse = false;
       sendBtn.disabled = false;
